@@ -1,0 +1,13 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="Gremlin.Net" Version="3.7.3" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\CodeIntel.Core\CodeIntel.Core.csproj" />
+  </ItemGroup>
+</Project>
