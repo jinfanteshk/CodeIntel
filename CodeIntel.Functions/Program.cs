@@ -1,4 +1,5 @@
 using CodeIntel.Core;
+using CodeIntel.Functions.Mocks;
 using CodeIntel.Graph;
 using CodeIntel.Ingest.Chunking;
 using CodeIntel.Ingest.GitHub;
@@ -19,43 +20,55 @@ var host = new HostBuilder()
     {
         var cfg = ctx.Configuration;
 
-        // GitHub
+        // GitHub (REAL - needs token)
         var ghToken = cfg["GitHub:Token"] ?? throw new InvalidOperationException("GitHub:Token missing");
         services.AddSingleton<IGitHubSource>(_ => new OctokitGitHubSource(ghToken));
 
-        // Roslyn analyzer
+        // Roslyn analyzer (REAL)
         services.AddSingleton<ICodeAnalyzer, RoslynAnalyzer>();
 
-        // Gremlin graph
-        services.AddSingleton<IGraphStore>(_ => new CosmosGremlinGraphStore(
-            host: cfg["CosmosGremlin:Host"]!,
-            port: int.Parse(cfg["CosmosGremlin:Port"] ?? "443"),
-            database: cfg["CosmosGremlin:Database"]!,
-            graph: cfg["CosmosGremlin:Graph"]!,
-            key: cfg["CosmosGremlin:Key"]!
-        ));
+        // Check if we're running locally without Azure services
+        bool useRealAzure = !string.IsNullOrEmpty(cfg["CosmosGremlin:Host"]);
 
-        // Embeddings
-        services.AddHttpClient();
-        services.AddSingleton<IEmbeddingService>(sp =>
+        if (useRealAzure)
         {
-            var http = sp.GetRequiredService<IHttpClientFactory>().CreateClient();
-            return new AzureOpenAIEmbeddingService(
-                http,
-                cfg["AzureOpenAI:Endpoint"]!,
-                cfg["AzureOpenAI:ApiKey"]!,
-                cfg["AzureOpenAI:EmbeddingDeployment"]!,
-                cfg["AzureOpenAI:ApiVersion"] ?? "2024-06-01"
-            );
-        });
+            // Real Azure services
+            services.AddSingleton<IGraphStore>(_ => new CosmosGremlinGraphStore(
+                host: cfg["CosmosGremlin:Host"]!,
+                port: int.Parse(cfg["CosmosGremlin:Port"] ?? "443"),
+                database: cfg["CosmosGremlin:Database"]!,
+                graph: cfg["CosmosGremlin:Graph"]!,
+                key: cfg["CosmosGremlin:Key"]!
+            ));
 
-        // Vector index
-        services.AddSingleton<IVectorIndex>(_ => new AzureSearchVectorIndex(
-            endpoint: cfg["Search:Endpoint"]!,
-            apiKey: cfg["Search:ApiKey"]!,
-            indexName: cfg["Search:IndexName"] ?? "codeintel",
-            vectorDimensions: int.Parse(cfg["Search:VectorDimensions"] ?? "1536")
-        ));
+            services.AddHttpClient();
+            services.AddSingleton<IEmbeddingService>(sp =>
+            {
+                var http = sp.GetRequiredService<IHttpClientFactory>().CreateClient();
+                return new AzureOpenAIEmbeddingService(
+                    http,
+                    cfg["AzureOpenAI:Endpoint"]!,
+                    cfg["AzureOpenAI:ApiKey"]!,
+                    cfg["AzureOpenAI:EmbeddingDeployment"]!,
+                    cfg["AzureOpenAI:ApiVersion"] ?? "2024-06-01"
+                );
+            });
+
+            services.AddSingleton<IVectorIndex>(_ => new AzureSearchVectorIndex(
+                endpoint: cfg["Search:Endpoint"]!,
+                apiKey: cfg["Search:ApiKey"]!,
+                indexName: cfg["Search:IndexName"] ?? "codeintel",
+                vectorDimensions: int.Parse(cfg["Search:VectorDimensions"] ?? "1536")
+            ));
+        }
+        else
+        {
+            // Mock Azure services (for local development)
+            Console.WriteLine("⚠️  Running with MOCK Azure services (local development mode)");
+            services.AddSingleton<IGraphStore, MockGraphStore>();
+            services.AddSingleton<IEmbeddingService, MockEmbeddingService>();
+            services.AddSingleton<IVectorIndex, MockVectorIndex>();
+        }
 
         // Orchestrator
         services.AddSingleton<IngestOrchestrator>();
