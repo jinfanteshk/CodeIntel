@@ -1,0 +1,29 @@
+{
+  "IsEncrypted": false,
+  "Values": {
+    "AzureWebJobsStorage": "UseDevelopmentStorage=true",
+    "FUNCTIONS_WORKER_RUNTIME": "dotnet-isolated",
+
+    "_comment_GitHub": "Get your token from: https://github.com/settings/tokens (needs 'repo' scope)",
+    "GitHub:Token": "",
+
+    "_comment_CosmosGremlin": "Optional: For Cosmos Gremlin graph store",
+    "CosmosGremlin:Host": "<account>.gremlin.cosmos.azure.com",
+    "CosmosGremlin:Port": "443",
+    "CosmosGremlin:Database": "codeintel",
+    "CosmosGremlin:Graph": "graph",
+    "CosmosGremlin:Key": "<primary key>",
+
+    "_comment_AzureOpenAI": "Optional: For embeddings generation (leave empty to use MockEmbeddingService)",
+    "AzureOpenAI:Endpoint": "",
+    "AzureOpenAI:ApiKey": "",
+    "AzureOpenAI:EmbeddingDeployment": "text-embedding-3-small",
+    "AzureOpenAI:ApiVersion": "2024-06-01",
+
+    "_comment_Search": "⚠️ DEPRECATED: No longer needed. Neo4j handles vector storage. Keep for legacy Gremlin stores only.",
+    "Search:Endpoint": "",
+    "Search:ApiKey": "",
+    "Search:IndexName": "codeintel",
+    "Search:VectorDimensions": "1536"
+  }
+}
