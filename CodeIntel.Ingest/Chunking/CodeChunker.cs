@@ -12,7 +12,9 @@ public static class CodeChunker
     /// </summary>
     public static IEnumerable<(string id, string content, string type, string className, string filePath)> ToVectorDocs(GraphModel model)
     {
-        var classById = model.Classes.ToDictionary(c => c.Id, c => c);
+        var classById = model.Classes
+            .DistinctBy(c => c.Id)  // Mantiene solo la primera ocurrencia
+            .ToDictionary(c => c.Id, c => c);
 
         foreach (var m in model.Methods)
         {
