@@ -33,13 +33,12 @@ var host = new HostBuilder()
         // Roslyn analyzer (REAL)
         services.AddSingleton<ICodeAnalyzer, RoslynAnalyzer>();
 
-        // Check if we're using Neo4j or Mock
-        // DEFAULT: Neo4jVersioned (Estrategia 1 - Versionado Temporal)
-        var graphStoreType = cfg["GraphStore:Type"] ?? "Neo4jVersioned"; // "Neo4jVersioned" (recommended), "Neo4jMultiDB", "Neo4j" (no versioning), or "Mock"
+        // Neo4j Versioned Graph Store (ONLY option for production)
+        var graphStoreType = cfg["GraphStore:Type"] ?? "Neo4jVersioned"; // "Neo4jVersioned" or "Mock"
 
         if (graphStoreType == "Neo4jVersioned")
         {
-            // Neo4j with versioning support (RECOMMENDED for production)
+            // Neo4j with versioning support (PRODUCTION)
             var neo4jUri = cfg["Neo4j:Uri"] ?? "bolt://localhost:7687";
             var neo4jUser = cfg["Neo4j:User"] ?? "neo4j";
             var neo4jPassword = cfg["Neo4j:Password"]!;
@@ -51,47 +50,6 @@ var host = new HostBuilder()
             });
 
             services.AddSingleton<IGraphStore>(sp => sp.GetRequiredService<IVersionedGraphStore>());
-
-            // ✅ NUEVO: Usar Neo4j para Vector Index también (no Azure Search)
-            services.AddSingleton<IVectorIndex>(sp =>
-            {
-                var logger = sp.GetRequiredService<ILogger<Neo4jVectorIndex>>();
-                return new Neo4jVectorIndex(neo4jUri, neo4jUser, neo4jPassword, logger, 1536);
-            });
-        }
-        else if (graphStoreType == "Neo4jMultiDB")
-        {
-            // Neo4j with multi-database strategy (alternative versioning approach)
-            var neo4jUri = cfg["Neo4j:Uri"] ?? "bolt://localhost:7687";
-            var neo4jUser = cfg["Neo4j:User"] ?? "neo4j";
-            var neo4jPassword = cfg["Neo4j:Password"]!;
-
-            services.AddSingleton<IVersionedGraphStore>(sp =>
-            {
-                var logger = sp.GetRequiredService<ILogger<Neo4jMultiDatabaseGraphStore>>();
-                return new Neo4jMultiDatabaseGraphStore(neo4jUri, neo4jUser, neo4jPassword, logger);
-            });
-
-            services.AddSingleton<IGraphStore>(sp => sp.GetRequiredService<IVersionedGraphStore>());
-
-            services.AddSingleton<IVectorIndex>(sp =>
-            {
-                var logger = sp.GetRequiredService<ILogger<Neo4jVectorIndex>>();
-                return new Neo4jVectorIndex(neo4jUri, neo4jUser, neo4jPassword, logger, 1536);
-            });
-        }
-        else if (graphStoreType == "Neo4j")
-        {
-            // Neo4j for both Graph and Vector storage
-            var neo4jUri = cfg["Neo4j:Uri"] ?? "bolt://localhost:7687";
-            var neo4jUser = cfg["Neo4j:User"] ?? "neo4j";
-            var neo4jPassword = cfg["Neo4j:Password"]!;
-
-            services.AddSingleton<IGraphStore>(sp => 
-            {
-                var logger = sp.GetRequiredService<ILogger<Neo4jGraphStore>>();
-                return new Neo4jGraphStore(neo4jUri, neo4jUser, neo4jPassword, logger);
-            });
 
             services.AddSingleton<IVectorIndex>(sp =>
             {

@@ -1,20 +1,20 @@
-# Estrategias de Versionado y Rollback en Neo4j para CodeIntel
+# Versionado y Rollback en Neo4j para CodeIntel
 
 ## Problema
 
-El código actual usa `MERGE` que sobrescribe nodos y relaciones, **imposibilitando el rollback** a versiones anteriores cuando:
+El código inicial usaba `MERGE` que sobrescribe nodos y relaciones, **imposibilitando el rollback** a versiones anteriores cuando:
 - Un commit/PR introduce errores en el análisis
 - Se despliega código defectuoso a producción
 - Un cliente necesita volver a un estado anterior del Knowledge Store
 
-## Soluciones Implementadas
+## Solución Implementada
 
-### ✅ Estrategia 1: Versionado Temporal (Bitemporal) - **RECOMENDADA**
+### ✅ Versionado Temporal (Bitemporal) - **ÚNICA ESTRATEGIA**
 
 **Archivo:** `Neo4jVersionedGraphStore.cs`
 
 #### Cómo Funciona
-- Cada nodo (Class, Method) tiene propiedades `validFrom` y `validTo` (timestamps)
+- Cada nodo (Class, Method, AspxPage, AspxControl) tiene propiedades `validFrom` y `validTo` (timestamps)
 - Las versiones antiguas NO se eliminan, se marcan como cerradas (`validTo` se setea)
 - Cada versión tiene un nodo `Version` con metadata (commitHash, timestamp)
 - Relaciones `NEXT_VERSION` conectan versiones consecutivas del mismo elemento
@@ -34,6 +34,7 @@ El código actual usa `MERGE` que sobrescribe nodos y relaciones, **imposibilita
   versionId: "abc123",
   validFrom: 1704067200,  // Unix timestamp
   validTo: null,          // null = versión actual
+  repoId: "owner/repo@main"
   // ... otros datos
 }
 ```
@@ -44,10 +45,11 @@ El código actual usa `MERGE` que sobrescribe nodos y relaciones, **imposibilita
 ✅ **Compacto**: Todo en una sola base de datos  
 ✅ **Queries temporales**: `WHERE validFrom <= $timestamp AND (validTo IS NULL OR validTo > $timestamp)`  
 ✅ **Auditabilidad**: Trazabilidad completa de cambios  
+✅ **Soporte ASPX**: Incluye versionado de páginas y controles ASPX
 
-#### Desventajas
-❌ El grafo crece con el tiempo (mitigable con políticas de retención)  
-❌ Queries deben filtrar por validez temporal  
+#### Consideraciones
+⚠️ El grafo crece con el tiempo (mitigable con políticas de retención)  
+⚠️ Queries deben filtrar por validez temporal (automático en el código)
 
 #### Casos de Uso
 - ✅ Análisis forense: "¿Qué código existía cuando surgió el bug?"
@@ -78,130 +80,9 @@ var versions = await store.GetVersionHistoryAsync(repoId, ct);
 
 ---
 
-### ✅ Estrategia 2: Múltiples Bases de Datos - **Para alta disponibilidad**
-
-**Archivo:** `Neo4jMultiDatabaseGraphStore.cs`
-
-#### Cómo Funciona
-- Cada versión se almacena en una **base de datos Neo4j separada**
-- Una BD de metadatos (`codeintel_metadata`) mantiene el índice de versiones
-- El "rollback" es instantáneo: solo cambia el puntero `CURRENT`
-
-#### Modelo de Datos
-```cypher
-// Base de datos: codeintel_metadata
-(Repository {id: "owner/repo@main"})
-    -[:CURRENT]-> (Version {
-                      id: "v1",
-                      databaseName: "codeintel_owner_repo_main_abc123",
-                      timestamp: 1704067200
-                   })
-    -[:HAS_VERSION]-> (Version {id: "v2", databaseName: "..."})
-    -[:HAS_VERSION]-> (Version {id: "v3", databaseName: "..."})
-
-// Base de datos: codeintel_owner_repo_main_abc123
-// (Grafo completo de esa versión, sin propiedades temporales)
-(Repository)-[:CONTAINS]->(Class)-[:HAS_METHOD]->(Method)
-```
-
-#### Ventajas
-✅ **Aislamiento total**: Cada versión es independiente  
-✅ **Rollback instantáneo**: Cambio de puntero en metadatos (< 1ms)  
-✅ **Queries simples**: No hay filtros temporales, consultas directas  
-✅ **Testing seguro**: Probar contra versión antigua sin afectar actual  
-✅ **Eliminación fácil**: `DROP DATABASE` libera espacio completamente  
-
-#### Desventajas
-❌ **Mayor overhead**: N versiones = N bases de datos  
-❌ **Límites Neo4j**: Neo4j Enterprise tiene límite de BDs (configurable)  
-❌ **No hay queries cross-version**: No puedes comparar entre versiones fácilmente  
-
-#### Casos de Uso
-- ✅ Blue-Green deployments
-- ✅ A/B testing de análisis de código
-- ✅ Rollback instantáneo en producción
-- ✅ Ambientes aislados (dev/staging/prod cada uno con su BD)
-
-#### Ejemplo de Uso
-```csharp
-var store = new Neo4jMultiDatabaseGraphStore(uri, user, pass, logger);
-
-// Crear nueva versión (nueva base de datos)
-await store.UpsertAsync(repoRequest, graphModel, ct);
-// Crea: codeintel_owner_repo_main_abc123
-
-// Rollback (solo cambia puntero CURRENT)
-await store.RollbackToVersionAsync(repoId, versionId, ct);
-
-// Obtener BD actual
-var currentDb = await store.GetCurrentDatabaseAsync(repoId);
-// Output: "codeintel_owner_repo_main_abc123"
-
-// Limpieza de versiones antiguas
-await store.DeleteVersionAsync(repoId, oldVersionId, ct);
-// Elimina la BD completa
-```
-
----
-
-### ⚡ Estrategia 3: Snapshots con Neo4j Dump (Manual)
-
-No implementada en código, pero es una opción válida:
-
-#### Cómo Funciona
-```bash
-# Antes de actualizar, crear snapshot
-neo4j-admin database dump codeintel --to-path=/backups/
-
-# Si algo falla, restaurar
-neo4j-admin database load codeintel --from-path=/backups/snapshot-2024-01-15.dump
-```
-
-#### Ventajas
-✅ Backups completos del sistema  
-✅ Recuperación ante desastres  
-
-#### Desventajas
-❌ Manual (no programático)  
-❌ Downtime durante restore  
-❌ No permite queries a versiones antiguas  
-
----
-
-## Comparación Rápida
-
-| Característica | Versionado Temporal | Múltiples BDs | Snapshots |
-|---------------|---------------------|---------------|-----------|
-| **Rollback instantáneo** | ❌ (requiere update) | ✅ (cambio puntero) | ❌ (restore manual) |
-| **Queries históricas** | ✅ | ❌ | ❌ |
-| **Overhead espacial** | ⚠️ Moderado | ❌ Alto | ⚠️ Moderado |
-| **Complejidad queries** | ⚠️ Filtros temporales | ✅ Simples | N/A |
-| **Diff entre versiones** | ✅ | ⚠️ Complejo | ❌ |
-| **Escalabilidad** | ✅ | ⚠️ (límite de BDs) | ✅ |
-| **Auditabilidad** | ✅ | ✅ | ⚠️ |
-
----
-
-## Recomendación Final
-
-### Para CodeIntel, usa **Estrategia 1 (Versionado Temporal)** porque:
-
-1. **Trazabilidad completa**: Los clientes quieren saber "¿qué código existía cuando...?"
-2. **Análisis de impacto**: Comparar cómo un commit cambió la arquitectura
-3. **CI/CD integration**: Validar PRs contra versión actual antes de merge
-4. **Compliance**: Empresas necesitan auditoría de cambios en código legacy
-5. **Diff entre versiones**: "Mostrar qué clases se agregaron/modificaron/eliminaron"
-
-### Considera **Estrategia 2 (Múltiples BDs)** si:
-- Necesitas rollback en < 1 segundo (alta disponibilidad extrema)
-- Tienes pocos repositorios pero alto tráfico de consultas
-- Quieres ambientes completamente aislados
-
----
-
 ## Integración con Webhooks GitHub
 
-Para actualización incremental via webhooks:
+Para actualización incremental vía webhooks:
 
 ```csharp
 // GitHubWebhookFunction.cs
