@@ -15,6 +15,7 @@ public class Neo4jVersionedGraphStore : IVersionedGraphStore, IAsyncDisposable
 
     public Neo4jVersionedGraphStore(string uri, string user, string password, ILogger<Neo4jVersionedGraphStore> logger)
     {
+        // El driver detecta automáticamente TLS desde el esquema URI (neo4j+s://)
         _driver = GraphDatabase.Driver(uri, AuthTokens.Basic(user, password), o =>
         {
             o.WithMaxConnectionLifetime(TimeSpan.FromMinutes(30));

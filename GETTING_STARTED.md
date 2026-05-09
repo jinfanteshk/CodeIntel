@@ -89,9 +89,21 @@ npm install -g azure-functions-core-tools@4 --unsafe-perm true
 choco install azure-functions-core-tools-4
 ```
 
-### 3️⃣ Iniciar Neo4j
+### 3️⃣ Configurar Neo4j
 
-#### Opción A: Docker (Recomendado)
+#### Opción A: Neo4j AuraDB Cloud ⭐ (Recomendado)
+
+**Ventajas:** Sin instalación, 14 días gratis, fully managed, acceso desde cualquier lugar.
+
+1. Ir a: https://console.neo4j.io/
+2. Crear cuenta o hacer login
+3. Crear nueva instancia **AuraDB Free**
+4. ⚠️ **IMPORTANTE:** Copiar el password (solo se muestra una vez)
+5. Copiar el Connection URI (ej: `neo4j+s://abc12345.databases.neo4j.io`)
+
+📖 **Guía detallada:** Ver [CONFIGURACION_NEO4J_AURADB.md](CONFIGURACION_NEO4J_AURADB.md)
+
+#### Opción B: Docker (Local)
 
 ```powershell
 docker run -d `
@@ -102,7 +114,7 @@ docker run -d `
   neo4j:5-community
 ```
 
-#### Opción B: Neo4j Desktop
+#### Opción C: Neo4j Desktop (Local)
 
 1. Descargar de https://neo4j.com/download/
 2. Instalar y crear nueva base de datos
@@ -111,12 +123,26 @@ docker run -d `
 
 ### 4️⃣ Inicializar Schema de Neo4j
 
+#### Si usas AuraDB Cloud:
+
+```powershell
+cd C:\proyectos\gh-code-intel-mvp\src\scripts
+.\Initialize-Neo4j-Versioned.ps1 `
+  -Uri "neo4j+s://TU-INSTANCIA.databases.neo4j.io" `
+  -User "neo4j" `
+  -Password "TU-PASSWORD-DE-AURADB"
+```
+
+#### Si usas Neo4j Local (Docker/Desktop):
+
 ```powershell
 cd C:\proyectos\gh-code-intel-mvp\src\scripts
 .\Initialize-Neo4j-Versioned.ps1 -Password codeintel123
 ```
 
-O manualmente en Neo4j Browser (http://localhost:7474):
+O manualmente en Neo4j Browser:
+- **AuraDB:** https://console.neo4j.io/ → Tu instancia → "Query"
+- **Local:** http://localhost:7474
 
 ```cypher
 // Constraints
@@ -155,6 +181,24 @@ SHOW INDEXES;
 
 Editar `CodeIntel.Functions/appsettings.Development.json`:
 
+**Si usas AuraDB Cloud:**
+```json
+{
+  "GitHub": {
+    "Token": "ghp_TU_TOKEN_AQUI"
+  },
+  "GraphStore": {
+    "Type": "Neo4jVersioned"
+  },
+  "Neo4j": {
+    "Uri": "neo4j+s://abc12345.databases.neo4j.io",  // ← Tu URI de AuraDB
+    "User": "neo4j",
+    "Password": "TuPasswordDeAuraDB"  // ← El que copiaste al crear la instancia
+  }
+}
+```
+
+**Si usas Neo4j Local:**
 ```json
 {
   "GitHub": {

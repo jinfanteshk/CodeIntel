@@ -132,3 +132,12 @@ Los únicos archivos que mencionan componentes eliminados (Azure Search, Gremlin
 - ✅ Documentación principal actualizada
 - ✅ Referencias obsoletas eliminadas de guías activas
 - ✅ Documentos históricos etiquetados correctamente
+- ✅ Neo4j AuraDB Cloud documentado como opción principal recomendada
+
+### Última Actualización (2024)
+- ✅ **README.md** y **GETTING_STARTED.md** ahora priorizan Neo4j AuraDB Cloud
+- ✅ Ejemplos actualizados con `neo4j+s://` para AuraDB
+- ✅ Opciones locales (Docker/Desktop) documentadas como alternativas
+- ✅ Script `Initialize-Neo4j-Versioned.ps1` con ejemplos de uso para ambos casos
+
+📄 **Ver:** [ACTUALIZACION_NEO4J_AURADB.md](ACTUALIZACION_NEO4J_AURADB.md) para detalles de los cambios.

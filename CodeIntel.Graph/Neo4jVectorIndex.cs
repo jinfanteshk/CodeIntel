@@ -13,6 +13,7 @@ public class Neo4jVectorIndex : IVectorIndex, IAsyncDisposable
 
     public Neo4jVectorIndex(string uri, string user, string password, ILogger<Neo4jVectorIndex> logger, int vectorDimensions = 1536)
     {
+        // El driver detecta automáticamente TLS desde el esquema URI (neo4j+s://)
         _driver = GraphDatabase.Driver(uri, AuthTokens.Basic(user, password), o =>
         {
             o.WithMaxConnectionLifetime(TimeSpan.FromMinutes(30));

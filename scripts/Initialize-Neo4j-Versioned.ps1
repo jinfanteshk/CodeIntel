@@ -1,5 +1,12 @@
 # Script para inicializar Neo4j con los índices necesarios para CodeIntel
-# con soporte de versionado temporal (Estrategia 1)
+# con soporte de versionado temporal
+#
+# Uso:
+#   Para Neo4j AuraDB Cloud:
+#     .\Initialize-Neo4j-Versioned.ps1 -Uri "neo4j+s://abc12345.databases.neo4j.io" -User "neo4j" -Password "tu-password"
+#
+#   Para Neo4j Local:
+#     .\Initialize-Neo4j-Versioned.ps1 -Password "tu-password"
 
 param(
     [string]$Uri = "bolt://localhost:7687",
@@ -9,7 +16,7 @@ param(
 
 Write-Host "=======================================" -ForegroundColor Cyan
 Write-Host "CodeIntel - Neo4j Initialization" -ForegroundColor Cyan
-Write-Host "Estrategia 1: Versionado Temporal" -ForegroundColor Cyan
+Write-Host "Versionado Temporal Neo4j" -ForegroundColor Cyan
 Write-Host "=======================================" -ForegroundColor Cyan
 Write-Host ""
 
@@ -31,7 +38,7 @@ if (-not $neo4jModule) {
 $cypherQueries = @"
 // ===================================================
 // CodeIntel - Índices y Constraints para Neo4j
-// Estrategia 1: Versionado Temporal
+// Versionado Temporal Neo4j
 // ===================================================
 
 // 1. CONSTRAINTS - Unicidad
@@ -56,7 +63,7 @@ FOR (c:Class) ON (c.repoId);
 CREATE INDEX method_repo_id IF NOT EXISTS
 FOR (m:Method) ON (m.repoId);
 
-// Índices temporales (CRÍTICOS para Estrategia 1)
+// Índices temporales (CRÍTICOS para versionado temporal)
 CREATE INDEX class_temporal IF NOT EXISTS
 FOR (c:Class) ON (c.validFrom, c.validTo);
 

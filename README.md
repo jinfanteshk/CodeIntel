@@ -58,7 +58,24 @@ Sistema de análisis y gestión de conocimiento de código con soporte completo 
    notepad appsettings.Development.json
    ```
 
-   Configura tus credenciales:
+   **Opción A: Neo4j AuraDB Cloud ⭐ (Recomendado)**
+   ```json
+   {
+     "GitHub": {
+       "Token": "ghp_TU_GITHUB_TOKEN_AQUI"
+     },
+     "GraphStore": {
+       "Type": "Neo4jVersioned"
+     },
+     "Neo4j": {
+       "Uri": "neo4j+s://abc12345.databases.neo4j.io",  // Tu URI de AuraDB
+       "User": "neo4j",
+       "Password": "tu-password-de-auradb"
+     }
+   }
+   ```
+
+   **Opción B: Neo4j Local (Docker/Desktop)**
    ```json
    {
      "GitHub": {
@@ -70,15 +87,28 @@ Sistema de análisis y gestión de conocimiento de código con soporte completo 
      "Neo4j": {
        "Uri": "bolt://localhost:7687",
        "User": "neo4j",
-       "Password": "tu-password-aqui"
+       "Password": "tu-password-local"
      }
    }
    ```
 
+   📖 **Guía detallada:** [CONFIGURACION_NEO4J_AURADB.md](CONFIGURACION_NEO4J_AURADB.md)
+
 4. **Inicializar Neo4j**
+
+   **Para AuraDB:**
    ```powershell
    cd ..\scripts
-   .\Initialize-Neo4j-Versioned.ps1 -Password "tu-password-aqui"
+   .\Initialize-Neo4j-Versioned.ps1 `
+     -Uri "neo4j+s://tu-instancia.databases.neo4j.io" `
+     -User "neo4j" `
+     -Password "tu-password-de-auradb"
+   ```
+
+   **Para Neo4j Local:**
+   ```powershell
+   cd ..\scripts
+   .\Initialize-Neo4j-Versioned.ps1 -Password "tu-password-local"
    ```
 
    Esto creará:
