@@ -175,6 +175,152 @@ public class Neo4jVersionedGraphStore : IVersionedGraphStore, IAsyncDisposable
                     });
                 }
 
+                // 5b. Cerrar versiones anteriores de RazorViews
+                await tx.RunAsync(@"
+                    MATCH (rv:RazorView {repoId: $repoId})
+                    WHERE rv.validTo IS NULL
+                    SET rv.validTo = $timestamp
+                ",
+                new { repoId, timestamp = timestamp.ToUnixTimeSeconds() });
+
+                // 5c. Crear nuevas versiones de RazorViews
+                foreach (var razorView in model.RazorViews)
+                {
+                    await tx.RunAsync(@"
+                        CREATE (rv:RazorView {
+                            id: $id,
+                            versionId: $versionId,
+                            name: $name,
+                            filePath: $filePath,
+                            modelType: $modelType,
+                            layout: $layout,
+                            injectedServices: $injectedServices,
+                            repoId: $repoId,
+                            validFrom: $timestamp,
+                            validTo: null
+                        })
+                        WITH rv
+                        MATCH (v:Version {id: $versionId})
+                        MERGE (v)-[:CONTAINS]->(rv)
+
+                        // Enlazar con versión anterior si existe
+                        WITH rv
+                        OPTIONAL MATCH (prev:RazorView {repoId: $repoId})
+                        WHERE prev.id = $id 
+                          AND prev.validTo = $timestamp
+                          AND prev.versionId <> $versionId
+                        FOREACH (_ IN CASE WHEN prev IS NOT NULL THEN [1] ELSE [] END |
+                            MERGE (prev)-[:NEXT_VERSION]->(rv)
+                        )
+                    ",
+                    new
+                    {
+                        id = razorView.Id,
+                        versionId,
+                        name = razorView.Name,
+                        filePath = razorView.FilePath,
+                        modelType = razorView.ModelType ?? "",
+                        layout = razorView.Layout ?? "",
+                        injectedServices = string.Join(",", razorView.InjectedServices),
+                        repoId,
+                        timestamp = timestamp.ToUnixTimeSeconds()
+                    });
+                }
+
+                // 5d. Cerrar versiones anteriores de ViewComponents
+                await tx.RunAsync(@"
+                    MATCH (vc:ViewComponent {repoId: $repoId})
+                    WHERE vc.validTo IS NULL
+                    SET vc.validTo = $timestamp
+                ",
+                new { repoId, timestamp = timestamp.ToUnixTimeSeconds() });
+
+                // 5e. Crear nuevas versiones de ViewComponents
+                foreach (var component in model.ViewComponents)
+                {
+                    await tx.RunAsync(@"
+                        CREATE (vc:ViewComponent {
+                            id: $id,
+                            versionId: $versionId,
+                            name: $name,
+                            invokedFrom: $invokedFrom,
+                            repoId: $repoId,
+                            validFrom: $timestamp,
+                            validTo: null
+                        })
+                        WITH vc
+                        MATCH (v:Version {id: $versionId})
+                        MERGE (v)-[:CONTAINS]->(vc)
+
+                        // Enlazar con versión anterior si existe
+                        WITH vc
+                        OPTIONAL MATCH (prev:ViewComponent {repoId: $repoId})
+                        WHERE prev.id = $id 
+                          AND prev.validTo = $timestamp
+                          AND prev.versionId <> $versionId
+                        FOREACH (_ IN CASE WHEN prev IS NOT NULL THEN [1] ELSE [] END |
+                            MERGE (prev)-[:NEXT_VERSION]->(vc)
+                        )
+                    ",
+                    new
+                    {
+                        id = component.Id,
+                        versionId,
+                        name = component.Name,
+                        invokedFrom = component.InvokedFrom ?? "",
+                        repoId,
+                        timestamp = timestamp.ToUnixTimeSeconds()
+                    });
+                }
+
+                // 5f. Cerrar versiones anteriores de ControllerActions
+                await tx.RunAsync(@"
+                    MATCH (ca:ControllerAction {repoId: $repoId})
+                    WHERE ca.validTo IS NULL
+                    SET ca.validTo = $timestamp
+                ",
+                new { repoId, timestamp = timestamp.ToUnixTimeSeconds() });
+
+                // 5g. Crear nuevas versiones de ControllerActions
+                foreach (var action in model.ControllerActions)
+                {
+                    await tx.RunAsync(@"
+                        CREATE (ca:ControllerAction {
+                            id: $id,
+                            versionId: $versionId,
+                            controllerName: $controllerName,
+                            actionName: $actionName,
+                            returnType: $returnType,
+                            repoId: $repoId,
+                            validFrom: $timestamp,
+                            validTo: null
+                        })
+                        WITH ca
+                        MATCH (v:Version {id: $versionId})
+                        MERGE (v)-[:CONTAINS]->(ca)
+
+                        // Enlazar con versión anterior si existe
+                        WITH ca
+                        OPTIONAL MATCH (prev:ControllerAction {repoId: $repoId})
+                        WHERE prev.id = $id 
+                          AND prev.validTo = $timestamp
+                          AND prev.versionId <> $versionId
+                        FOREACH (_ IN CASE WHEN prev IS NOT NULL THEN [1] ELSE [] END |
+                            MERGE (prev)-[:NEXT_VERSION]->(ca)
+                        )
+                    ",
+                    new
+                    {
+                        id = action.Id,
+                        versionId,
+                        controllerName = action.ControllerName,
+                        actionName = action.ActionName,
+                        returnType = action.ReturnType ?? "",
+                        repoId,
+                        timestamp = timestamp.ToUnixTimeSeconds()
+                    });
+                }
+
                 // 6. Crear relaciones versionadas
                 foreach (var edge in model.Edges)
                 {
@@ -296,7 +442,11 @@ public class Neo4jVersionedGraphStore : IVersionedGraphStore, IAsyncDisposable
         return new GraphModel(classes, methods, edges, 
             new List<AspxPage>(), 
             new List<AspxControl>(), 
-            new List<AspxEvent>());
+            new List<AspxEvent>(),
+            // Razor collections (empty for now)
+            new List<RazorView>(),
+            new List<ViewComponent>(),
+            new List<ControllerAction>());
     }
 
     /// <summary>

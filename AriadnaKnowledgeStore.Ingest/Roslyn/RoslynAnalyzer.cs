@@ -1,6 +1,7 @@
 ﻿using System.Collections.Concurrent;
 using AriadnaKnowledgeStore.Core;
 using AriadnaKnowledgeStore.Ingest.Aspx;
+using AriadnaKnowledgeStore.Ingest.Razor;
 using Microsoft.Build.Locator;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
@@ -10,11 +11,12 @@ using Microsoft.CodeAnalysis.MSBuild;
 namespace AriadnaKnowledgeStore.Ingest.Roslyn;
 
 /// <summary>
-/// Analyzes C# files and ASPX/ASCX files from repositories
+/// Analyzes C# files, ASPX/ASCX files, and Razor (.cshtml) files from repositories
 /// </summary>
 public sealed class RoslynAnalyzer : ICodeAnalyzer
 {
     private readonly AspxAnalyzer _aspxAnalyzer = new();
+    private readonly RazorAnalyzer _razorAnalyzer = new();
 
     public async Task<GraphModel> AnalyzeAsync(string localPath, CancellationToken ct)
     {
@@ -28,6 +30,11 @@ public sealed class RoslynAnalyzer : ICodeAnalyzer
             .Concat(Directory.EnumerateFiles(localPath, "*.ascx", SearchOption.AllDirectories))
             .ToList();
 
+        var cshtmlFiles = Directory.EnumerateFiles(localPath, "*.cshtml", SearchOption.AllDirectories)
+            .Where(f => !f.Contains(Path.DirectorySeparatorChar + "bin" + Path.DirectorySeparatorChar)
+                     && !f.Contains(Path.DirectorySeparatorChar + "obj" + Path.DirectorySeparatorChar))
+            .ToList();
+
         var classes = new ConcurrentBag<CodeClass>();
         var methods = new ConcurrentBag<CodeMethod>();
         var edges = new ConcurrentBag<CodeEdge>();
@@ -35,6 +42,10 @@ public sealed class RoslynAnalyzer : ICodeAnalyzer
         var aspxPages = new ConcurrentBag<AspxPage>();
         var aspxControls = new ConcurrentBag<AspxControl>();
         var aspxEvents = new ConcurrentBag<AspxEvent>();
+
+        var razorViews = new ConcurrentBag<RazorView>();
+        var viewComponents = new ConcurrentBag<ViewComponent>();
+        var controllerActions = new ConcurrentBag<ControllerAction>();
 
         // Analyze C# files
         foreach (var file in csFiles)
@@ -116,13 +127,40 @@ public sealed class RoslynAnalyzer : ICodeAnalyzer
             }
         }
 
+        // Analyze Razor (.cshtml) files
+        foreach (var cshtmlFile in cshtmlFiles)
+        {
+            ct.ThrowIfCancellationRequested();
+
+            try
+            {
+                var result = await _razorAnalyzer.AnalyzeAsync(cshtmlFile, localPath, ct);
+
+                razorViews.Add(result.View);
+
+                foreach (var component in result.Components)
+                    viewComponents.Add(component);
+
+                foreach (var edge in result.Edges)
+                    edges.Add(edge);
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Warning: Failed to analyze Razor file {cshtmlFile}: {ex.Message}");
+            }
+        }
+
         return new GraphModel(
             classes.ToList(), 
             methods.ToList(), 
             edges.ToList(),
             aspxPages.ToList(),
             aspxControls.ToList(),
-            aspxEvents.ToList());
+            aspxEvents.ToList(),
+            // Razor collections
+            razorViews.ToList(),
+            viewComponents.ToList(),
+            controllerActions.ToList());
     }
 
     private static string Rel(string file, string root)
