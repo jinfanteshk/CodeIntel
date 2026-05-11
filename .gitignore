@@ -363,3 +363,6 @@ MigrationBackup/
 FodyWeavers.xsd
 # Azure Functions local settings
 local.settings.json
+
+**/local.settings.json
+**/local.settings.json.GOOD

@@ -1,0 +1,31 @@
+{
+  "IsEncrypted": false,
+  "Values": {
+    "AzureWebJobsStorage": "UseDevelopmentStorage=true",
+    "FUNCTIONS_WORKER_RUNTIME": "dotnet-isolated"
+  },
+  "GitHub": {
+    "Token": "TU_GITHUB_TOKEN_AQUI"
+  },
+  "GraphStore": {
+    "Type": "Mock"
+  },
+  "Neo4j": {
+    "Uri": "bolt://localhost:7687",
+    "User": "neo4j",
+    "Password": "password"
+  },
+  "AzureOpenAI": {
+    "Endpoint": "",
+    "ApiKey": "",
+    "EmbeddingDeployment": "",
+    "ApiVersion": "2024-06-01"
+  },
+  "Logging": {
+    "LogLevel": {
+      "Default": "Information",
+      "Microsoft": "Warning",
+      "Microsoft.Hosting.Lifetime": "Information"
+    }
+  }
+}
