@@ -1,6 +1,7 @@
 ﻿using System.Collections.Concurrent;
 using AriadnaKnowledgeStore.Core;
 using AriadnaKnowledgeStore.Ingest.Aspx;
+using AriadnaKnowledgeStore.Ingest.Blazor;
 using AriadnaKnowledgeStore.Ingest.Razor;
 using Microsoft.Build.Locator;
 using Microsoft.CodeAnalysis;
@@ -11,12 +12,13 @@ using Microsoft.CodeAnalysis.MSBuild;
 namespace AriadnaKnowledgeStore.Ingest.Roslyn;
 
 /// <summary>
-/// Analyzes C# files, ASPX/ASCX files, and Razor (.cshtml) files from repositories
+/// Analyzes C# files, ASPX/ASCX files, Razor (.cshtml) files, and Blazor (.razor) components from repositories
 /// </summary>
 public sealed class RoslynAnalyzer : ICodeAnalyzer
 {
     private readonly AspxAnalyzer _aspxAnalyzer = new();
     private readonly RazorAnalyzer _razorAnalyzer = new();
+    private readonly BlazorComponentAnalyzer _blazorAnalyzer = new();
 
     public async Task<GraphModel> AnalyzeAsync(string localPath, CancellationToken ct)
     {
@@ -35,6 +37,11 @@ public sealed class RoslynAnalyzer : ICodeAnalyzer
                      && !f.Contains(Path.DirectorySeparatorChar + "obj" + Path.DirectorySeparatorChar))
             .ToList();
 
+        var razorFiles = Directory.EnumerateFiles(localPath, "*.razor", SearchOption.AllDirectories)
+            .Where(f => !f.Contains(Path.DirectorySeparatorChar + "bin" + Path.DirectorySeparatorChar)
+                     && !f.Contains(Path.DirectorySeparatorChar + "obj" + Path.DirectorySeparatorChar))
+            .ToList();
+
         var classes = new ConcurrentBag<CodeClass>();
         var methods = new ConcurrentBag<CodeMethod>();
         var edges = new ConcurrentBag<CodeEdge>();
@@ -46,6 +53,11 @@ public sealed class RoslynAnalyzer : ICodeAnalyzer
         var razorViews = new ConcurrentBag<RazorView>();
         var viewComponents = new ConcurrentBag<ViewComponent>();
         var controllerActions = new ConcurrentBag<ControllerAction>();
+
+        var blazorComponents = new ConcurrentBag<BlazorComponent>();
+        var blazorParameters = new ConcurrentBag<BlazorParameter>();
+        var blazorEventCallbacks = new ConcurrentBag<BlazorEventCallback>();
+        var blazorChildComponents = new ConcurrentBag<BlazorChildComponent>();
 
         // Analyze C# files
         foreach (var file in csFiles)
@@ -150,6 +162,35 @@ public sealed class RoslynAnalyzer : ICodeAnalyzer
             }
         }
 
+        // Analyze Blazor (.razor) components
+        foreach (var razorFile in razorFiles)
+        {
+            ct.ThrowIfCancellationRequested();
+
+            try
+            {
+                var result = await _blazorAnalyzer.AnalyzeAsync(razorFile, localPath, ct);
+
+                blazorComponents.Add(result.Component);
+
+                foreach (var parameter in result.Parameters)
+                    blazorParameters.Add(parameter);
+
+                foreach (var callback in result.EventCallbacks)
+                    blazorEventCallbacks.Add(callback);
+
+                foreach (var child in result.ChildComponents)
+                    blazorChildComponents.Add(child);
+
+                foreach (var edge in result.Edges)
+                    edges.Add(edge);
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Warning: Failed to analyze Blazor component {razorFile}: {ex.Message}");
+            }
+        }
+
         return new GraphModel(
             classes.ToList(), 
             methods.ToList(), 
@@ -160,7 +201,12 @@ public sealed class RoslynAnalyzer : ICodeAnalyzer
             // Razor collections
             razorViews.ToList(),
             viewComponents.ToList(),
-            controllerActions.ToList());
+            controllerActions.ToList(),
+            // Blazor collections
+            blazorComponents.ToList(),
+            blazorParameters.ToList(),
+            blazorEventCallbacks.ToList(),
+            blazorChildComponents.ToList());
     }
 
     private static string Rel(string file, string root)

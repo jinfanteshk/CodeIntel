@@ -75,5 +75,60 @@ Handler Method: {evt.HandlerMethod}
 This event connects UI interaction to server-side code.";
             yield return (evt.Id, content, "aspx_event", evt.HandlerMethod, evt.ControlId);
         }
+
+        // Generate chunks for Blazor components
+        foreach (var component in model.BlazorComponents)
+        {
+            var services = component.InjectedServices.Any()
+                ? string.Join(", ", component.InjectedServices)
+                : "None";
+
+            var content = @$"Blazor Component: {component.Name}
+Route: {component.PageRoute ?? "N/A"}
+Inherits: {component.BaseType ?? "ComponentBase"}
+Injected Services: {services}
+File: {component.FilePath}
+
+@code {{
+{component.CodeBlock ?? "// No code block"}
+}}";
+            yield return (component.Id, content, "blazor_component", component.Name, component.FilePath);
+        }
+
+        // Generate chunks for Blazor parameters
+        foreach (var param in model.BlazorParameters)
+        {
+            var required = param.IsRequired ? "Required" : "Optional";
+            var content = @$"Blazor Parameter: {param.Name}
+Type: {param.Type}
+Component: {param.ComponentId}
+Status: {required}
+
+This parameter allows data to be passed into the Blazor component.";
+            yield return (param.Id, content, "blazor_parameter", param.Name, param.ComponentId);
+        }
+
+        // Generate chunks for Blazor event callbacks
+        foreach (var callback in model.BlazorEventCallbacks)
+        {
+            var eventType = callback.EventType ?? "EventCallback";
+            var content = @$"Blazor Event Callback: {callback.Name}
+Type: EventCallback<{eventType}>
+Component: {callback.ComponentId}
+
+This callback allows the component to notify parent components of events.";
+            yield return (callback.Id, content, "blazor_callback", callback.Name, callback.ComponentId);
+        }
+
+        // Generate chunks for Blazor child components
+        foreach (var child in model.BlazorChildComponents)
+        {
+            var content = @$"Blazor Child Component Usage
+Parent: {child.ParentComponentId}
+Child Component: {child.ChildComponentName}
+
+This represents a child component being used within a parent component.";
+            yield return (child.Id, content, "blazor_child_usage", child.ChildComponentName, child.ParentComponentId);
+        }
     }
 }

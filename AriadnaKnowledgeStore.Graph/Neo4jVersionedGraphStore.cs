@@ -321,6 +321,204 @@ public class Neo4jVersionedGraphStore : IVersionedGraphStore, IAsyncDisposable
                     });
                 }
 
+                // 5h. Cerrar versiones anteriores de BlazorComponents
+                await tx.RunAsync(@"
+                    MATCH (bc:BlazorComponent {repoId: $repoId})
+                    WHERE bc.validTo IS NULL
+                    SET bc.validTo = $timestamp
+                ",
+                new { repoId, timestamp = timestamp.ToUnixTimeSeconds() });
+
+                // 5i. Crear nuevas versiones de BlazorComponents
+                foreach (var blazorComponent in model.BlazorComponents)
+                {
+                    await tx.RunAsync(@"
+                        CREATE (bc:BlazorComponent {
+                            id: $id,
+                            versionId: $versionId,
+                            name: $name,
+                            filePath: $filePath,
+                            pageRoute: $pageRoute,
+                            baseType: $baseType,
+                            injectedServices: $injectedServices,
+                            codeBlock: $codeBlock,
+                            repoId: $repoId,
+                            validFrom: $timestamp,
+                            validTo: null
+                        })
+                        WITH bc
+                        MATCH (v:Version {id: $versionId})
+                        MERGE (v)-[:CONTAINS]->(bc)
+
+                        // Enlazar con versión anterior si existe
+                        WITH bc
+                        OPTIONAL MATCH (prev:BlazorComponent {repoId: $repoId})
+                        WHERE prev.id = $id 
+                          AND prev.validTo = $timestamp
+                          AND prev.versionId <> $versionId
+                        FOREACH (_ IN CASE WHEN prev IS NOT NULL THEN [1] ELSE [] END |
+                            MERGE (prev)-[:NEXT_VERSION]->(bc)
+                        )
+                    ",
+                    new
+                    {
+                        id = blazorComponent.Id,
+                        versionId,
+                        name = blazorComponent.Name,
+                        filePath = blazorComponent.FilePath,
+                        pageRoute = blazorComponent.PageRoute ?? "",
+                        baseType = blazorComponent.BaseType ?? "",
+                        injectedServices = string.Join(",", blazorComponent.InjectedServices),
+                        codeBlock = blazorComponent.CodeBlock ?? "",
+                        repoId,
+                        timestamp = timestamp.ToUnixTimeSeconds()
+                    });
+                }
+
+                // 5j. Cerrar versiones anteriores de BlazorParameters
+                await tx.RunAsync(@"
+                    MATCH (bp:BlazorParameter {repoId: $repoId})
+                    WHERE bp.validTo IS NULL
+                    SET bp.validTo = $timestamp
+                ",
+                new { repoId, timestamp = timestamp.ToUnixTimeSeconds() });
+
+                // 5k. Crear nuevas versiones de BlazorParameters
+                foreach (var blazorParameter in model.BlazorParameters)
+                {
+                    await tx.RunAsync(@"
+                        CREATE (bp:BlazorParameter {
+                            id: $id,
+                            versionId: $versionId,
+                            componentId: $componentId,
+                            name: $name,
+                            type: $type,
+                            isRequired: $isRequired,
+                            repoId: $repoId,
+                            validFrom: $timestamp,
+                            validTo: null
+                        })
+                        WITH bp
+                        MATCH (v:Version {id: $versionId})
+                        MERGE (v)-[:CONTAINS]->(bp)
+
+                        // Enlazar con versión anterior si existe
+                        WITH bp
+                        OPTIONAL MATCH (prev:BlazorParameter {repoId: $repoId})
+                        WHERE prev.id = $id 
+                          AND prev.validTo = $timestamp
+                          AND prev.versionId <> $versionId
+                        FOREACH (_ IN CASE WHEN prev IS NOT NULL THEN [1] ELSE [] END |
+                            MERGE (prev)-[:NEXT_VERSION]->(bp)
+                        )
+                    ",
+                    new
+                    {
+                        id = blazorParameter.Id,
+                        versionId,
+                        componentId = blazorParameter.ComponentId,
+                        name = blazorParameter.Name,
+                        type = blazorParameter.Type,
+                        isRequired = blazorParameter.IsRequired,
+                        repoId,
+                        timestamp = timestamp.ToUnixTimeSeconds()
+                    });
+                }
+
+                // 5l. Cerrar versiones anteriores de BlazorEventCallbacks
+                await tx.RunAsync(@"
+                    MATCH (bec:BlazorEventCallback {repoId: $repoId})
+                    WHERE bec.validTo IS NULL
+                    SET bec.validTo = $timestamp
+                ",
+                new { repoId, timestamp = timestamp.ToUnixTimeSeconds() });
+
+                // 5m. Crear nuevas versiones de BlazorEventCallbacks
+                foreach (var blazorCallback in model.BlazorEventCallbacks)
+                {
+                    await tx.RunAsync(@"
+                        CREATE (bec:BlazorEventCallback {
+                            id: $id,
+                            versionId: $versionId,
+                            componentId: $componentId,
+                            name: $name,
+                            eventType: $eventType,
+                            repoId: $repoId,
+                            validFrom: $timestamp,
+                            validTo: null
+                        })
+                        WITH bec
+                        MATCH (v:Version {id: $versionId})
+                        MERGE (v)-[:CONTAINS]->(bec)
+
+                        // Enlazar con versión anterior si existe
+                        WITH bec
+                        OPTIONAL MATCH (prev:BlazorEventCallback {repoId: $repoId})
+                        WHERE prev.id = $id 
+                          AND prev.validTo = $timestamp
+                          AND prev.versionId <> $versionId
+                        FOREACH (_ IN CASE WHEN prev IS NOT NULL THEN [1] ELSE [] END |
+                            MERGE (prev)-[:NEXT_VERSION]->(bec)
+                        )
+                    ",
+                    new
+                    {
+                        id = blazorCallback.Id,
+                        versionId,
+                        componentId = blazorCallback.ComponentId,
+                        name = blazorCallback.Name,
+                        eventType = blazorCallback.EventType ?? "",
+                        repoId,
+                        timestamp = timestamp.ToUnixTimeSeconds()
+                    });
+                }
+
+                // 5n. Cerrar versiones anteriores de BlazorChildComponents
+                await tx.RunAsync(@"
+                    MATCH (bcc:BlazorChildComponent {repoId: $repoId})
+                    WHERE bcc.validTo IS NULL
+                    SET bcc.validTo = $timestamp
+                ",
+                new { repoId, timestamp = timestamp.ToUnixTimeSeconds() });
+
+                // 5o. Crear nuevas versiones de BlazorChildComponents
+                foreach (var blazorChild in model.BlazorChildComponents)
+                {
+                    await tx.RunAsync(@"
+                        CREATE (bcc:BlazorChildComponent {
+                            id: $id,
+                            versionId: $versionId,
+                            parentComponentId: $parentComponentId,
+                            childComponentName: $childComponentName,
+                            repoId: $repoId,
+                            validFrom: $timestamp,
+                            validTo: null
+                        })
+                        WITH bcc
+                        MATCH (v:Version {id: $versionId})
+                        MERGE (v)-[:CONTAINS]->(bcc)
+
+                        // Enlazar con versión anterior si existe
+                        WITH bcc
+                        OPTIONAL MATCH (prev:BlazorChildComponent {repoId: $repoId})
+                        WHERE prev.id = $id 
+                          AND prev.validTo = $timestamp
+                          AND prev.versionId <> $versionId
+                        FOREACH (_ IN CASE WHEN prev IS NOT NULL THEN [1] ELSE [] END |
+                            MERGE (prev)-[:NEXT_VERSION]->(bcc)
+                        )
+                    ",
+                    new
+                    {
+                        id = blazorChild.Id,
+                        versionId,
+                        parentComponentId = blazorChild.ParentComponentId,
+                        childComponentName = blazorChild.ChildComponentName,
+                        repoId,
+                        timestamp = timestamp.ToUnixTimeSeconds()
+                    });
+                }
+
                 // 6. Crear relaciones versionadas
                 foreach (var edge in model.Edges)
                 {
@@ -395,6 +593,10 @@ public class Neo4jVersionedGraphStore : IVersionedGraphStore, IAsyncDisposable
         var classes = new List<CodeClass>();
         var methods = new List<CodeMethod>();
         var edges = new List<CodeEdge>();
+        var blazorComponents = new List<BlazorComponent>();
+        var blazorParameters = new List<BlazorParameter>();
+        var blazorEventCallbacks = new List<BlazorEventCallback>();
+        var blazorChildComponents = new List<BlazorChildComponent>();
 
         await session.ExecuteReadAsync(async tx =>
         {
@@ -437,6 +639,95 @@ public class Neo4jVersionedGraphStore : IVersionedGraphStore, IAsyncDisposable
                     record["body"].As<string>()
                 ));
             }
+
+            // Obtener BlazorComponents válidos en ese timestamp
+            var blazorComponentResult = await tx.RunAsync(@"
+                MATCH (bc:BlazorComponent {repoId: $repoId})
+                WHERE bc.validFrom <= $timestamp 
+                  AND (bc.validTo IS NULL OR bc.validTo > $timestamp)
+                RETURN bc.id as id, bc.name as name, bc.filePath as filePath,
+                       bc.pageRoute as pageRoute, bc.baseType as baseType,
+                       bc.injectedServices as injectedServices, bc.codeBlock as codeBlock
+            ",
+            new { repoId, timestamp });
+
+            await foreach (var record in blazorComponentResult)
+            {
+                var servicesStr = record["injectedServices"].As<string>();
+                var services = string.IsNullOrEmpty(servicesStr) 
+                    ? new List<string>() 
+                    : servicesStr.Split(',').ToList();
+
+                blazorComponents.Add(new BlazorComponent(
+                    Id: record["id"].As<string>(),
+                    Name: record["name"].As<string>(),
+                    FilePath: record["filePath"].As<string>(),
+                    PageRoute: record["pageRoute"].As<string>(),
+                    BaseType: record["baseType"].As<string>(),
+                    InjectedServices: services,
+                    CodeBlock: record["codeBlock"].As<string>()
+                ));
+            }
+
+            // Obtener BlazorParameters válidos en ese timestamp
+            var blazorParameterResult = await tx.RunAsync(@"
+                MATCH (bp:BlazorParameter {repoId: $repoId})
+                WHERE bp.validFrom <= $timestamp 
+                  AND (bp.validTo IS NULL OR bp.validTo > $timestamp)
+                RETURN bp.id as id, bp.componentId as componentId, bp.name as name,
+                       bp.type as type, bp.isRequired as isRequired
+            ",
+            new { repoId, timestamp });
+
+            await foreach (var record in blazorParameterResult)
+            {
+                blazorParameters.Add(new BlazorParameter(
+                    Id: record["id"].As<string>(),
+                    ComponentId: record["componentId"].As<string>(),
+                    Name: record["name"].As<string>(),
+                    Type: record["type"].As<string>(),
+                    IsRequired: record["isRequired"].As<bool>()
+                ));
+            }
+
+            // Obtener BlazorEventCallbacks válidos en ese timestamp
+            var blazorCallbackResult = await tx.RunAsync(@"
+                MATCH (bec:BlazorEventCallback {repoId: $repoId})
+                WHERE bec.validFrom <= $timestamp 
+                  AND (bec.validTo IS NULL OR bec.validTo > $timestamp)
+                RETURN bec.id as id, bec.componentId as componentId, bec.name as name,
+                       bec.eventType as eventType
+            ",
+            new { repoId, timestamp });
+
+            await foreach (var record in blazorCallbackResult)
+            {
+                blazorEventCallbacks.Add(new BlazorEventCallback(
+                    Id: record["id"].As<string>(),
+                    ComponentId: record["componentId"].As<string>(),
+                    Name: record["name"].As<string>(),
+                    EventType: record["eventType"].As<string>()
+                ));
+            }
+
+            // Obtener BlazorChildComponents válidos en ese timestamp
+            var blazorChildResult = await tx.RunAsync(@"
+                MATCH (bcc:BlazorChildComponent {repoId: $repoId})
+                WHERE bcc.validFrom <= $timestamp 
+                  AND (bcc.validTo IS NULL OR bcc.validTo > $timestamp)
+                RETURN bcc.id as id, bcc.parentComponentId as parentComponentId,
+                       bcc.childComponentName as childComponentName
+            ",
+            new { repoId, timestamp });
+
+            await foreach (var record in blazorChildResult)
+            {
+                blazorChildComponents.Add(new BlazorChildComponent(
+                    Id: record["id"].As<string>(),
+                    ParentComponentId: record["parentComponentId"].As<string>(),
+                    ChildComponentName: record["childComponentName"].As<string>()
+                ));
+            }
         });
 
         return new GraphModel(classes, methods, edges, 
@@ -446,7 +737,12 @@ public class Neo4jVersionedGraphStore : IVersionedGraphStore, IAsyncDisposable
             // Razor collections (empty for now)
             new List<RazorView>(),
             new List<ViewComponent>(),
-            new List<ControllerAction>());
+            new List<ControllerAction>(),
+            // Blazor collections (now populated from Neo4j)
+            blazorComponents,
+            blazorParameters,
+            blazorEventCallbacks,
+            blazorChildComponents);
     }
 
     /// <summary>
